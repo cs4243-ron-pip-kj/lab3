@@ -153,7 +153,39 @@ def harris_corners(img, window_size=3, k=0.04):
     response = np.zeros((H, W))
 
     ### YOUR CODE HERE
-    raise NotImplementedError() # Delete this line
+    gaussian = np.zeros((window_size, window_size))
+    sigma = 1
+    
+    # Generate the Gaussian kernel
+    x_o = math.floor(window_size/2)
+    y_o = math.floor(window_size/2)
+    
+    x_mean = math.floor((window_size)/2)
+    y_mean = math.floor((window_size)/2)
+    
+    for i in range(len(gaussian)):
+        for j in range(len(gaussian[i])):
+            gaussian[i][j] = math.exp((pow(i - x_mean, 2) + pow(j - y_mean, 2))/(-2 * pow(sigma, 2)))
+    
+    # Calculate the gradient
+    i_x = filters.sobel_h(img)
+    i_y = filters.sobel_v(img)
+    
+    # Calculate Hessian matrix for each window
+    for i in range(H-window_size):
+        for j in range(W-window_size):
+            curr_ix = i_x[i:i+window_size, j:j+window_size]
+            curr_iy = i_y[i:i+window_size, j:j+window_size]
+            
+            a = sum(sum(convolve(curr_ix**2, gaussian)))
+            b = sum(sum(convolve(curr_ix*curr_iy, gaussian)))
+            c = sum(sum(convolve(curr_iy**2, gaussian)))
+            
+            det_mtx = a*c - b*b
+            trace_mtx = a+c
+            
+            R = det_mtx - k*(trace_mtx**2)
+            response[i+1, j+1] = R
     ### END YOUR CODE
 
     return response
