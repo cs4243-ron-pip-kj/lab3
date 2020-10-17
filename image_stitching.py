@@ -211,7 +211,15 @@ def simple_descriptor(patch):
     """
     feature = []
     ### YOUR CODE HERE
-    raise NotImplementedError() # Delete this line
+    flattened = patch.flatten()
+    miu = np.mean(flattened)
+    sigma = np.std(flattened)
+    
+    for ele in flattened:
+        if sigma > 0:
+            feature.append((ele-miu)/sigma)
+        else:
+            feature.append(ele-miu)
     ### END YOUR CODE
     return feature
 
@@ -261,7 +269,22 @@ def match_descriptors(desc1, desc2, threshold=0.5):
     dists = cdist(desc1, desc2)
 
     ### YOUR CODE HERE
-    raise NotImplementedError() # Delete this line
+    for i in range(desc1.shape[0]):
+        # Matching point desc1[i] and desc2[j]
+        index = np.argpartition(dists[i], 2)
+        j = index[0]
+        two_min_val = dists[i][index[:2]]
+        
+        lowest = two_min_val[0]
+        second_lowest = two_min_val[1]
+        ratio = lowest/second_lowest
+        
+        # Add if not ambiguous match
+        if ratio < threshold:
+            matches.append([i, j])
+    
+    # Convert into numpy array
+    matches = np.array(matches)
     ### END YOUR CODE
     
     return matches
