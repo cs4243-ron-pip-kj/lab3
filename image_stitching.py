@@ -104,6 +104,16 @@ def transform_homography(src, h_matrix, getNormalized = True):
     
     return transformed
 
+def normalize(src):
+    m = np.mean(src,0)
+    s = np.std(src)
+    T = np.array([[s, 0, m[0]],[0, s, m[1]],[0, 0, 1]])
+    T = np.linalg.inv(T)
+
+    normalized = transform_homography(src,T,True)
+    
+    return T, normalized
+
 def compute_homography(src, dst):
     """Calculates the perspective transform from at least 4 points of
     corresponding points using the **Normalized** Direct Linear Transformation
@@ -124,7 +134,43 @@ def compute_homography(src, dst):
     h_matrix = np.eye(3, dtype=np.float64)
 
     ### YOUR CODE HERE
-    raise NotImplementedError() # Delete this line
+    #Normalize src
+    T1,src = normalize(src)
+    #Normalize dst
+    T2,dst = normalize(dst)
+    
+    ##Start of DLT
+    n = src.shape[0]
+    A = np.zeros((2*n,9))
+    
+    #Concatenate into 2n*9 matrixA
+    for i in range(0,n,2):
+        A[i,0] = -1*src[i,1] #-x
+        A[i,1] = -src[i,0] #-y
+        A[i,2] = -1 #-1
+        A[i,6] = src[i,1]*dst[i,1] #xx'
+        A[i,7] = src[i,0]*dst[i,1] #yx'
+        A[i,8] = dst[i,1] #x'
+        A[i+1,3] = -src[i,1] #-x
+        A[i+1,4] = -src[i,0] #-y
+        A[i+1,5] = -1 #-1
+        A[i+1,6] = src[i,1]*dst[i,0] #xy'
+        A[i+1,7] = src[i,0]*dst[i,0] #yy'
+        A[i+1,8] = dst[i,0] #y'
+    
+    #Compute SVD
+    U, D, V = np.linalg.svd(A,0)
+    
+    #Store singular vector of smallest singular value h
+    h = V[:,8]
+    
+    #Reshape to get H
+    h_matrix = np.reshape(h, (-1,3))
+    ##End of DLT
+    
+    #Denormalization: Set H = INV(T′)HT.
+    h_matrix = np.dot(np.dot( np.linalg.inv(T2), h_matrix), T1)
+    
     ### END YOUR CODE
 
     return h_matrix
