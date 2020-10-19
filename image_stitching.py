@@ -144,19 +144,21 @@ def compute_homography(src, dst):
     A = np.zeros((2*n,9))
     
     #Concatenate into 2n*9 matrixA
-    for i in range(0,n,2):
-        A[i,0] = -1*src[i,1] #-x
-        A[i,1] = -src[i,0] #-y
+    for i in range(0,2*n,2):
+        j = int(i/2)
+
+        A[i,0] = -1*src[j,1] #-x
+        A[i,1] = -src[j,0] #-y
         A[i,2] = -1 #-1
-        A[i,6] = src[i,1]*dst[i,1] #xx'
-        A[i,7] = src[i,0]*dst[i,1] #yx'
-        A[i,8] = dst[i,1] #x'
-        A[i+1,3] = -src[i,1] #-x
-        A[i+1,4] = -src[i,0] #-y
+        A[i,6] = src[j,1]*dst[j,1] #xx'
+        A[i,7] = src[j,0]*dst[j,1] #yx'
+        A[i,8] = dst[j,1] #x'
+        A[i+1,3] = -src[j,1] #-x
+        A[i+1,4] = -src[j,0] #-y
         A[i+1,5] = -1 #-1
-        A[i+1,6] = src[i,1]*dst[i,0] #xy'
-        A[i+1,7] = src[i,0]*dst[i,0] #yy'
-        A[i+1,8] = dst[i,0] #y'
+        A[i+1,6] = src[j,1]*dst[j,0] #xy'
+        A[i+1,7] = src[j,0]*dst[j,0] #yy'
+        A[i+1,8] = dst[j,0] #y'
     
     #Compute SVD
     U, D, V = np.linalg.svd(A,0)
