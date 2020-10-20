@@ -105,10 +105,13 @@ def transform_homography(src, h_matrix, getNormalized = True):
     return transformed
 
 def normalize(src):
-    m = np.mean(src,0)
-    s = np.std(src)
-    T = np.array([[s, 0, m[0]],[0, s, m[1]],[0, 0, 1]])
-    T = np.linalg.inv(T)
+    m = np.mean(src,axis=0)
+    mx = m[0]
+    my = m[1]
+    s = np.std(src,axis=0)
+    sx = s[0]*1/np.sqrt(2)
+    sy = s[1]*1/np.sqrt(2)
+    T = np.array([[1/sx, 0, -1*mx/sx],[0, 1/sy, -1*my/sy],[0, 0, 1]])
 
     normalized = transform_homography(src,T,True)
     
@@ -146,19 +149,19 @@ def compute_homography(src, dst):
     #Concatenate into 2n*9 matrixA
     for i in range(0,2*n,2):
         j = int(i/2)
-
-        A[i,0] = -1*src[j,1] #-x
-        A[i,1] = -src[j,0] #-y
+        
+        A[i,0] = -1*src[j,0] #-x
+        A[i,1] = -src[j,1] #-y
         A[i,2] = -1 #-1
-        A[i,6] = src[j,1]*dst[j,1] #xx'
-        A[i,7] = src[j,0]*dst[j,1] #yx'
-        A[i,8] = dst[j,1] #x'
-        A[i+1,3] = -src[j,1] #-x
-        A[i+1,4] = -src[j,0] #-y
+        A[i,6] = src[j,0]*dst[j,0] #xx'
+        A[i,7] = src[j,1]*dst[j,0] #yx'
+        A[i,8] = dst[j,0] #x'
+        A[i+1,3] = -src[j,0] #-x
+        A[i+1,4] = -src[j,1] #-y
         A[i+1,5] = -1 #-1
-        A[i+1,6] = src[j,1]*dst[j,0] #xy'
-        A[i+1,7] = src[j,0]*dst[j,0] #yy'
-        A[i+1,8] = dst[j,0] #y'
+        A[i+1,6] = src[j,0]*dst[j,1] #xy'
+        A[i+1,7] = src[j,1]*dst[j,1] #yy'
+        A[i+1,8] = dst[j,1] #y'
     
     #Compute SVD
     U, D, V = np.linalg.svd(A,0)
