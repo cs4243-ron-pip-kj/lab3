@@ -371,12 +371,38 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
     matched1_unpad = keypoints1[matches[:,0]]
     matched2_unpad = keypoints2[matches[:,1]]
 
-    max_inliers = np.zeros(N)
+    max_inliers = np.zeros(N, dtype=np.int8)
     n_inliers = 0
 
     # RANSAC iteration start
     ### YOUR CODE HERE
-    raise NotImplementedError() # Delete this line
+    
+    iterations = n_iters
+    while (iterations >= 0):    
+        curr_inliers = 0
+        curr_max_inliers = np.zeros(N, dtype=np.int8)
+        random_index = np.random.choice(N, n_samples, replace = False)
+        kp1 = np.zeros((n_samples, 2))
+        kp2 = np.zeros((n_samples, 2))
+    
+        for i in range(n_samples):
+            kp1[i] = keypoints1[matches[random_index[i]][0]]
+            kp2[i] = keypoints2[matches[random_index[i]][1]]
+    
+        H_matrix = compute_homography(kp2, kp1)
+        transformed_coord = transform_homography(kp2, H_matrix)
+        for j in range(len(transformed_coord)):
+            distance = (transformed_coord[j][0]-keypoints1[j][0])**2 + (transformed_coord[j][1]-keypoints1[j][1])**2
+            if (distance <= threshold):
+                curr_inliers = curr_inliers + 1
+                curr_max_inliers[j] = j
+                
+        if (curr_inliers > n_inliers):
+            n_inliers = curr_inliers
+            H = H_matrix
+            max_inliers = curr_max_inliers        
+        iterations = iterations - 1
+    
     ### END YOUR CODE
     return H, matches[max_inliers]
 
