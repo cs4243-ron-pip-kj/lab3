@@ -450,7 +450,56 @@ def sift_descriptor(patch):
     histogram = np.zeros((4,4,8))
     
     ### YOUR CODE HERE
-    raise NotImplementedError() # Delete this line
+
+    x = patch.shape[0]
+    y = patch.shape[1]
+    
+    for i in range(4):
+        for j in range(4):
+            last_x = (i + 1) * 4
+            last_y = (j + 1) * 4
+            for k in range(last_x - 4, last_x):
+                for l in range(last_y - 4, last_y):
+                    gradient = 0
+                    if (dx[k][l] > 0 and dy[k][l] > 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l])
+                    elif (dx[k][l] < 0 and dy[k][l] > 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l]) + math.pi
+                    elif (dx[k][l] > 0 and dy[k][l] < 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l]) + 2 * math.pi
+                    elif (dx[k][l] < 0 and dy[k][l] < 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l]) + math.pi
+                    elif (dx[k][l] == 0 and dy[k][l] == 0):
+                        gradient = 0
+                    elif (dx[k][l] == 0):
+                        if (dy[k][l] > 0):
+                            gradient = 1.5 * math.pi
+                        else:
+                            gradient = 0.5 * math.pi
+                    elif (dy[k][l] == 0):
+                        if (dx[k][l] > 0):
+                            gradient = 0
+                        else:
+                            gradient = math.pi
+                    
+                    if (gradient >= 0 and gradient < math.pi/4):
+                        histogram[i][j][0] += 1
+                    elif (gradient >= math.pi/4 and gradient < math.pi /2):
+                        histogram[i][j][1] += 1
+                    elif (gradient >= math.pi/2 and gradient < math.pi * (3/4)):
+                        histogram[i][j][2] += 1
+                    elif (gradient >= math.pi * (3/4) and gradient < math.pi):
+                        histogram[i][j][3] += 1
+                    elif (gradient >= math.pi and gradient < math.pi * (5/4)):
+                        histogram[i][j][4] += 1
+                    elif (gradient >= math.pi * (5/4) and gradient < math.pi * (3/2)):
+                        histogram[i][j][5] += 1
+                    elif (gradient >= math.pi * (3/2) and gradient < math.pi * (7/4)):
+                        histogram[i][j][6] += 1
+                    elif (gradient >= math.pi * (7/4) and gradient < math.pi * 2):
+                        histogram[i][j][7] += 1                  
+                    
+    feature = histogram.reshape(4, 32).reshape(128)
     # END YOUR CODE
     
     return feature
