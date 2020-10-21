@@ -374,6 +374,8 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
     max_inliers = np.zeros(N, dtype=np.int8)
     n_inliers = 0
 
+    H = np.zeros((3, 3))
+    
     # RANSAC iteration start
     ### YOUR CODE HERE
     
