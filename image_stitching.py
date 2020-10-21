@@ -371,12 +371,38 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
     matched1_unpad = keypoints1[matches[:,0]]
     matched2_unpad = keypoints2[matches[:,1]]
 
-    max_inliers = np.zeros(N)
+    max_inliers = np.zeros(N, dtype=np.int8)
     n_inliers = 0
 
     # RANSAC iteration start
     ### YOUR CODE HERE
-    raise NotImplementedError() # Delete this line
+    
+    iterations = n_iters
+    while (iterations >= 0):    
+        curr_inliers = 0
+        curr_max_inliers = np.zeros(N, dtype=np.int8)
+        random_index = np.random.choice(N, n_samples, replace = False)
+        kp1 = np.zeros((n_samples, 2))
+        kp2 = np.zeros((n_samples, 2))
+    
+        for i in range(n_samples):
+            kp1[i] = keypoints1[matches[random_index[i]][0]]
+            kp2[i] = keypoints2[matches[random_index[i]][1]]
+    
+        H_matrix = compute_homography(kp2, kp1)
+        transformed_coord = transform_homography(kp2, H_matrix)
+        for j in range(len(transformed_coord)):
+            distance = (transformed_coord[j][0]-keypoints1[j][0])**2 + (transformed_coord[j][1]-keypoints1[j][1])**2
+            if (distance <= threshold):
+                curr_inliers = curr_inliers + 1
+                curr_max_inliers[j] = j
+                
+        if (curr_inliers > n_inliers):
+            n_inliers = curr_inliers
+            H = H_matrix
+            max_inliers = curr_max_inliers        
+        iterations = iterations - 1
+    
     ### END YOUR CODE
     return H, matches[max_inliers]
 
@@ -424,7 +450,56 @@ def sift_descriptor(patch):
     histogram = np.zeros((4,4,8))
     
     ### YOUR CODE HERE
-    raise NotImplementedError() # Delete this line
+
+    x = patch.shape[0]
+    y = patch.shape[1]
+    
+    for i in range(4):
+        for j in range(4):
+            last_x = (i + 1) * 4
+            last_y = (j + 1) * 4
+            for k in range(last_x - 4, last_x):
+                for l in range(last_y - 4, last_y):
+                    gradient = 0
+                    if (dx[k][l] > 0 and dy[k][l] > 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l])
+                    elif (dx[k][l] < 0 and dy[k][l] > 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l]) + math.pi
+                    elif (dx[k][l] > 0 and dy[k][l] < 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l]) + 2 * math.pi
+                    elif (dx[k][l] < 0 and dy[k][l] < 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l]) + math.pi
+                    elif (dx[k][l] == 0 and dy[k][l] == 0):
+                        gradient = 0
+                    elif (dx[k][l] == 0):
+                        if (dy[k][l] > 0):
+                            gradient = 1.5 * math.pi
+                        else:
+                            gradient = 0.5 * math.pi
+                    elif (dy[k][l] == 0):
+                        if (dx[k][l] > 0):
+                            gradient = 0
+                        else:
+                            gradient = math.pi
+                    
+                    if (gradient >= 0 and gradient < math.pi/4):
+                        histogram[i][j][0] += 1
+                    elif (gradient >= math.pi/4 and gradient < math.pi /2):
+                        histogram[i][j][1] += 1
+                    elif (gradient >= math.pi/2 and gradient < math.pi * (3/4)):
+                        histogram[i][j][2] += 1
+                    elif (gradient >= math.pi * (3/4) and gradient < math.pi):
+                        histogram[i][j][3] += 1
+                    elif (gradient >= math.pi and gradient < math.pi * (5/4)):
+                        histogram[i][j][4] += 1
+                    elif (gradient >= math.pi * (5/4) and gradient < math.pi * (3/2)):
+                        histogram[i][j][5] += 1
+                    elif (gradient >= math.pi * (3/2) and gradient < math.pi * (7/4)):
+                        histogram[i][j][6] += 1
+                    elif (gradient >= math.pi * (7/4) and gradient < math.pi * 2):
+                        histogram[i][j][7] += 1                  
+                    
+    feature = histogram.reshape(4, 32).reshape(128)
     # END YOUR CODE
     
     return feature
