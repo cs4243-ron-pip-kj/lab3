@@ -108,12 +108,11 @@ def normalize(src):
     m = np.mean(src,axis=0)
     mx = m[0]
     my = m[1]
-    s = np.std(src,axis=0)
-    sx = s[0]*1/np.sqrt(2)
-    sy = s[1]*1/np.sqrt(2)
-    T = np.array([[1/sx, 0, -1*mx/sx],[0, 1/sy, -1*my/sy],[0, 0, 1]])
-
-    normalized = transform_homography(src,T,True)
+    s = np.std(src)
+    T = np.array([[s, 0, mx],[0, s, my],[0, 0, 1]])
+    T = np.linalg.inv(T)
+    
+    normalized = transform_homography(src,T,True)  
     
     return T, normalized
 
@@ -138,10 +137,10 @@ def compute_homography(src, dst):
 
     ### YOUR CODE HERE
     #Normalize src
-    T1,src = normalize(src)
+    T1,normalized_src = normalize(src)
     #Normalize dst
-    T2,dst = normalize(dst)
-    
+    T2,normalized_dst = normalize(dst)
+        
     ##Start of DLT
     n = src.shape[0]
     A = np.zeros((2*n,9))
@@ -150,31 +149,35 @@ def compute_homography(src, dst):
     for i in range(0,2*n,2):
         j = int(i/2)
         
-        A[i,0] = -1*src[j,0] #-x
-        A[i,1] = -src[j,1] #-y
+        x = normalized_src[j][0]
+        y = normalized_src[j][1]
+        x_p = normalized_dst[j][0]
+        y_p = normalized_dst[j][1]
+        
+        A[i,0] = -x #-x
+        A[i,1] = -y #-y
         A[i,2] = -1 #-1
-        A[i,6] = src[j,0]*dst[j,0] #xx'
-        A[i,7] = src[j,1]*dst[j,0] #yx'
-        A[i,8] = dst[j,0] #x'
-        A[i+1,3] = -src[j,0] #-x
-        A[i+1,4] = -src[j,1] #-y
+        A[i,6] = x * x_p #xx'
+        A[i,7] = y * x_p #yx'
+        A[i,8] = x_p #x'
+        A[i+1,3] = -x #-x
+        A[i+1,4] = -y #-y
         A[i+1,5] = -1 #-1
-        A[i+1,6] = src[j,0]*dst[j,1] #xy'
-        A[i+1,7] = src[j,1]*dst[j,1] #yy'
-        A[i+1,8] = dst[j,1] #y'
+        A[i+1,6] = x * y_p #xy'
+        A[i+1,7] = y * y_p #yy'
+        A[i+1,8] = y_p #y'
     
-    #Compute SVD
-    U, D, V = np.linalg.svd(A,0)
+    #Compute SVD    
+    U, D, V = np.linalg.svd(A,0) 
     
     #Store singular vector of smallest singular value h
-    h = V[:,8]
-    
+    L = V[-1,:] / V[-1,-1]  
+
     #Reshape to get H
-    h_matrix = np.reshape(h, (-1,3))
-    ##End of DLT
+    H = np.reshape(L, (-1,3))
     
     #Denormalization: Set H = INV(T′)HT.
-    h_matrix = np.dot(np.dot( np.linalg.inv(T2), h_matrix), T1)
+    h_matrix = np.dot(np.dot( np.linalg.inv(T2), H), T1)
     
     ### END YOUR CODE
 
