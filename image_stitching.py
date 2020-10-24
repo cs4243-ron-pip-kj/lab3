@@ -108,12 +108,11 @@ def normalize(src):
     m = np.mean(src,axis=0)
     mx = m[0]
     my = m[1]
-    s = np.std(src,axis=0)
-    sx = s[0]*1/np.sqrt(2)
-    sy = s[1]*1/np.sqrt(2)
-    T = np.array([[1/sx, 0, -1*mx/sx],[0, 1/sy, -1*my/sy],[0, 0, 1]])
-
-    normalized = transform_homography(src,T,True)
+    s = np.std(src)
+    T = np.array([[s, 0, mx],[0, s, my],[0, 0, 1]])
+    T = np.linalg.inv(T)
+    
+    normalized = transform_homography(src,T,True)  
     
     return T, normalized
 
@@ -138,10 +137,10 @@ def compute_homography(src, dst):
 
     ### YOUR CODE HERE
     #Normalize src
-    T1,src = normalize(src)
+    T1,normalized_src = normalize(src)
     #Normalize dst
-    T2,dst = normalize(dst)
-    
+    T2,normalized_dst = normalize(dst)
+        
     ##Start of DLT
     n = src.shape[0]
     A = np.zeros((2*n,9))
@@ -150,31 +149,35 @@ def compute_homography(src, dst):
     for i in range(0,2*n,2):
         j = int(i/2)
         
-        A[i,0] = -1*src[j,0] #-x
-        A[i,1] = -src[j,1] #-y
+        x = normalized_src[j][0]
+        y = normalized_src[j][1]
+        x_p = normalized_dst[j][0]
+        y_p = normalized_dst[j][1]
+        
+        A[i,0] = -x #-x
+        A[i,1] = -y #-y
         A[i,2] = -1 #-1
-        A[i,6] = src[j,0]*dst[j,0] #xx'
-        A[i,7] = src[j,1]*dst[j,0] #yx'
-        A[i,8] = dst[j,0] #x'
-        A[i+1,3] = -src[j,0] #-x
-        A[i+1,4] = -src[j,1] #-y
+        A[i,6] = x * x_p #xx'
+        A[i,7] = y * x_p #yx'
+        A[i,8] = x_p #x'
+        A[i+1,3] = -x #-x
+        A[i+1,4] = -y #-y
         A[i+1,5] = -1 #-1
-        A[i+1,6] = src[j,0]*dst[j,1] #xy'
-        A[i+1,7] = src[j,1]*dst[j,1] #yy'
-        A[i+1,8] = dst[j,1] #y'
+        A[i+1,6] = x * y_p #xy'
+        A[i+1,7] = y * y_p #yy'
+        A[i+1,8] = y_p #y'
     
-    #Compute SVD
-    U, D, V = np.linalg.svd(A,0)
+    #Compute SVD    
+    U, D, V = np.linalg.svd(A,0) 
     
     #Store singular vector of smallest singular value h
-    h = V[:,8]
-    
+    L = V[-1,:] / V[-1,-1]  
+
     #Reshape to get H
-    h_matrix = np.reshape(h, (-1,3))
-    ##End of DLT
+    H = np.reshape(L, (-1,3))
     
     #Denormalization: Set H = INV(T′)HT.
-    h_matrix = np.dot(np.dot( np.linalg.inv(T2), h_matrix), T1)
+    h_matrix = np.dot(np.dot( np.linalg.inv(T2), H), T1)
     
     ### END YOUR CODE
 
@@ -362,6 +365,9 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
         H: a robust estimation of affine transformation from keypoints2 to
         keypoints 1
     """
+    print("Matches N: " + str(matches.shape[0]))
+    sampling_ratio = 0.50
+    threshold = 150
     N = matches.shape[0]
     n_samples = int(N * sampling_ratio)
 
@@ -379,33 +385,57 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
     # RANSAC iteration start
     ### YOUR CODE HERE
     
-    iterations = n_iters
+    iterations = n_iters * 10
     while (iterations >= 0):    
+#         print("Iteration " + str(iterations))
         curr_inliers = 0
-        curr_max_inliers = np.zeros(N, dtype=np.int8)
+        curr_max_inliers = []
         random_index = np.random.choice(N, n_samples, replace = False)
         kp1 = np.zeros((n_samples, 2))
         kp2 = np.zeros((n_samples, 2))
     
         for i in range(n_samples):
-            kp1[i] = keypoints1[matches[random_index[i]][0]]
-            kp2[i] = keypoints2[matches[random_index[i]][1]]
+            index_of_kp1 = matches[random_index[i]][0]
+            index_of_kp2 = matches[random_index[i]][1]
+            kp1[i] = keypoints1[index_of_kp1]
+            kp2[i] = keypoints2[index_of_kp2]
     
         H_matrix = compute_homography(kp2, kp1)
         transformed_coord = transform_homography(kp2, H_matrix)
-        for j in range(len(transformed_coord)):
-            distance = (transformed_coord[j][0]-keypoints1[j][0])**2 + (transformed_coord[j][1]-keypoints1[j][1])**2
+        for j in range(n_samples):
+            distance = (transformed_coord[j][0]-kp1[j][0])**2 + (transformed_coord[j][1]-kp1[j][1])**2
             if (distance <= threshold):
                 curr_inliers = curr_inliers + 1
-                curr_max_inliers[j] = j
-                
+#                 curr_max_inliers[j] = j
+                for i in range(n_samples):
+                    index_of_kp1 = matches[random_index[i]][0]
+                    if ((keypoints1[index_of_kp1][0] == kp1[j][0]) and (keypoints1[index_of_kp1][1] == kp1[j][1])):
+                        curr_max_inliers.append(random_index[i])
+        
         if (curr_inliers > n_inliers):
+            print("Iteration " + str(iterations))
+            print ("Diff in no of inliers" + str(curr_inliers - n_inliers))
             n_inliers = curr_inliers
-            H = H_matrix
-            max_inliers = curr_max_inliers        
+            max_inliers = np.zeros(n_inliers)
+            max_inliers = np.array(curr_max_inliers)      
+            print("Size of max_inliers inside loop: " + str(max_inliers.shape))
         iterations = iterations - 1
-    
+        
+    inliers_matches = matches[max_inliers]
+    kp1 = np.zeros((n_samples, 2))
+    kp2 = np.zeros((n_samples, 2))
+    for k in range(n_inliers):
+        kp1[k] = keypoints1[inliers_matches[k][0]]
+        kp2[k] = keypoints2[inliers_matches[k][1]]
+    H = compute_homography(kp2, kp1)
     ### END YOUR CODE
+#     print(str(matches[max_inliers]))
+    print("Threshold " + str(threshold))
+    print("Num of samples " + str(n_samples))
+    print("Num of inliers " + str(n_inliers))
+    print("Size of max_inliers: " + str(max_inliers.shape))
+    print("Shape of matches[max_inliers]: " + str(matches[max_inliers].shape))
+    print("Homography: " + str(H))
     return H, matches[max_inliers]
 
 
