@@ -366,8 +366,7 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
         keypoints 1
     """
     print("Matches N: " + str(matches.shape[0]))
-    sampling_ratio = 0.50
-    threshold = 150
+
     N = matches.shape[0]
     n_samples = int(N * sampling_ratio)
 
@@ -384,7 +383,9 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
     
     # RANSAC iteration start
     ### YOUR CODE HERE
-    
+#     sampling_ratio = 0.50
+#     threshold = 150
+
     iterations = n_iters * 10
     while (iterations >= 0):    
 #         print("Iteration " + str(iterations))
@@ -394,24 +395,25 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
         kp1 = np.zeros((n_samples, 2))
         kp2 = np.zeros((n_samples, 2))
     
+        #Get random n_samples to compute H
         for i in range(n_samples):
-            index_of_kp1 = matches[random_index[i]][0]
-            index_of_kp2 = matches[random_index[i]][1]
-            kp1[i] = keypoints1[index_of_kp1]
-            kp2[i] = keypoints2[index_of_kp2]
-    
+            kp1[i] = matched1_unpad[random_index[i]]
+            kp2[i] = matched2_unpad[random_index[i]]
         H_matrix = compute_homography(kp2, kp1)
-        transformed_coord = transform_homography(kp2, H_matrix)
-        for j in range(n_samples):
-            distance = (transformed_coord[j][0]-kp1[j][0])**2 + (transformed_coord[j][1]-kp1[j][1])**2
+#         print(str(kp1))
+        
+        #Transform matched2 to matched1 from the computed H and calculate inliers
+        transformed_coord = transform_homography(matched2_unpad, H_matrix)
+        for j in range(N):
+#             i_1 = matches[j][0]
+#             i_2 = matches[j][1]
+            distance = (transformed_coord[j][0]-matched1_unpad[j][0])**2 + (transformed_coord[j][1]-matched1_unpad[j][1])**2
+            #Check if ssd <= threshold, if it is, append the index of inliears to the list of curr_max_inliers
             if (distance <= threshold):
                 curr_inliers = curr_inliers + 1
-#                 curr_max_inliers[j] = j
-                for i in range(n_samples):
-                    index_of_kp1 = matches[random_index[i]][0]
-                    if ((keypoints1[index_of_kp1][0] == kp1[j][0]) and (keypoints1[index_of_kp1][1] == kp1[j][1])):
-                        curr_max_inliers.append(random_index[i])
-        
+                curr_max_inliers.append(j)
+                
+        # Check if the number of current inliers is greater than the maximum number of inliers
         if (curr_inliers > n_inliers):
             print("Iteration " + str(iterations))
             print ("Diff in no of inliers" + str(curr_inliers - n_inliers))
@@ -420,14 +422,19 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
             max_inliers = np.array(curr_max_inliers)      
             print("Size of max_inliers inside loop: " + str(max_inliers.shape))
         iterations = iterations - 1
-        
-    inliers_matches = matches[max_inliers]
-    kp1 = np.zeros((n_samples, 2))
-    kp2 = np.zeros((n_samples, 2))
-    for k in range(n_inliers):
-        kp1[k] = keypoints1[inliers_matches[k][0]]
-        kp2[k] = keypoints2[inliers_matches[k][1]]
+    
+    #Recompute H based on the inliers that we found
+    kp1_unpad = []
+    kp2_unpad = []
+    for k in max_inliers:
+        print("Inlier points is: " + str(k))
+        kp1_unpad.append(matched1_unpad[k])
+        kp2_unpad.append(matched2_unpad[k])
+    kp1 = np.array(kp1_unpad)
+    kp2 = np.array(kp2_unpad)
+    print(str(kp1))
     H = compute_homography(kp2, kp1)
+    H = np.linalg.inv(H)
     ### END YOUR CODE
 #     print(str(matches[max_inliers]))
     print("Threshold " + str(threshold))
@@ -532,6 +539,9 @@ def sift_descriptor(patch):
                         histogram[i][j][7] += 1                  
                     
     feature = histogram.reshape(4, 32).reshape(128)
+    for i in feature:
+        i = i**0.75
+    feature = feature / sum(feature)
     # END YOUR CODE
     
     return feature
