@@ -120,15 +120,12 @@ def compute_homography(src, dst):
     """Calculates the perspective transform from at least 4 points of
     corresponding points using the **Normalized** Direct Linear Transformation
     method.
-
     Args:
         src (np.ndarray): Coordinates of points in the first image (N,2)
         dst (np.ndarray): Corresponding coordinates of points in the second
                           image (N,2)
-
     Returns:
         h_matrix (np.ndarray): The required 3x3 transformation matrix H.
-
     Prohibited functions:
         cv2.findHomography(), cv2.getPerspectiveTransform(),
         np.linalg.solve(), np.linalg.lstsq()
@@ -400,24 +397,6 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
         curr_max_inliers, = np.where(ssds < threshold)
         if (len(curr_max_inliers) > len(max_inliers)):
             max_inliers = curr_max_inliers
-        
-#         for j in range(N):
-            
-#             distance = (transformed_coord[j][0]-matched1_unpad[j][0])**2 + (transformed_coord[j][1]-matched1_unpad[j][1])**2
-            
-#             #Check if ssd <= threshold, if it is, append the index of inliears to the list of curr_max_inliers
-#             if (distance < threshold):
-#                 curr_inliers = curr_inliers + 1
-#                 curr_max_inliers.append(j)
-                
-#         # Check if the number of current inliers is greater than the maximum number of inliers
-#         if (curr_inliers > n_inliers):
-#             print("Iteration " + str(iterations))
-#             print ("Diff in no of inliers" + str(curr_inliers - n_inliers))
-#             n_inliers = curr_inliers
-#             max_inliers = np.zeros(n_inliers)
-#             max_inliers = np.array(curr_max_inliers)      
-#             print("Size of max_inliers inside loop: " + str(max_inliers.shape))
         
         iterations = iterations - 1
     
