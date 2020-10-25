@@ -177,7 +177,7 @@ def compute_homography(src, dst):
     H = np.reshape(L, (-1,3))
     
     #Denormalization: Set H = INV(T′)HT.
-    h_matrix = np.dot(np.dot( np.linalg.inv(T2), H), T1)
+    h_matrix = np.dot(np.linalg.inv(T2), np.dot(H, T1))
     
     ### END YOUR CODE
 
@@ -365,6 +365,7 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
         H: a robust estimation of affine transformation from keypoints2 to
         keypoints 1
     """
+
     N = matches.shape[0]
     n_samples = int(N * sampling_ratio)
 
@@ -374,15 +375,44 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
     matched1_unpad = keypoints1[matches[:,0]]
     matched2_unpad = keypoints2[matches[:,1]]
 
-    max_inliers = np.zeros(N)
+    max_inliers = []
     n_inliers = 0
 
     # RANSAC iteration start
     ### YOUR CODE HERE
-    raise NotImplementedError() # Delete this line
-    ### END YOUR CODE
-    return H, matches[max_inliers]
+    matched1[:, [0,1]] = matched1[:, [1,0]]
+    matched2[:, [0,1]] = matched2[:, [1,0]]
+    matched1_unpad[:, [0,1]] = matched1_unpad[:, [1,0]]
+    matched2_unpad[:, [0,1]] = matched2_unpad[:, [1,0]]
 
+    iterations = n_iters * 10
+#     max_inliers = np.zeros(1)
+    
+    while (iterations >= 0):    
+        
+        curr_inliers = 0
+        curr_max_inliers = []
+    
+        #Get random n_samples to compute H
+        random_index = np.random.choice(N, n_samples, replace = False)
+        kp1 = matched1_unpad[random_index]
+        kp2 = matched2_unpad[random_index]
+        H_matrix = compute_homography(kp2, kp1)
+        
+        #Transform matched2 to matched1 from the computed H and calculate inliers
+        transformed_coord = transform_homography(matched2_unpad, H_matrix)
+        ssds = np.sum((matched1_unpad - transformed_coord)**2, axis = 1)
+        curr_max_inliers, = np.where(ssds < threshold)
+        if (len(curr_max_inliers) > len(max_inliers)):
+            max_inliers = curr_max_inliers
+        iterations = iterations - 1
+    
+    #Recompute H based on the inliers that we found
+
+    H = compute_homography(matched1_unpad[max_inliers], matched2_unpad[max_inliers])
+    ### END YOUR CODE
+
+    return H, matches[max_inliers]
 
 def sift_descriptor(patch):
     """
@@ -427,7 +457,60 @@ def sift_descriptor(patch):
     histogram = np.zeros((4,4,8))
     
     ### YOUR CODE HERE
-    raise NotImplementedError() # Delete this line
+    x = patch.shape[0]
+    y = patch.shape[1]
+    
+    for i in range(4):
+        for j in range(4):
+            last_x = (i + 1) * 4
+            last_y = (j + 1) * 4
+            for k in range(last_x - 4, last_x):
+                for l in range(last_y - 4, last_y):
+                    magnitude = np.sqrt(np.power(dx[k][l], 2) + np.power(dy[k][l], 2))
+                    gradient = 0
+                    if (dx[k][l] > 0 and dy[k][l] > 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l])
+                    elif (dx[k][l] < 0 and dy[k][l] > 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l]) + math.pi
+                    elif (dx[k][l] > 0 and dy[k][l] < 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l]) + 2 * math.pi
+                    elif (dx[k][l] < 0 and dy[k][l] < 0):
+                        gradient = math.atan(dy[k][l]/dx[k][l]) + math.pi
+                    elif (dx[k][l] == 0 and dy[k][l] == 0):
+                        gradient = 0
+                    elif (dx[k][l] == 0):
+                        if (dy[k][l] > 0):
+                            gradient = 1.5 * math.pi
+                        else:
+                            gradient = 0.5 * math.pi
+                    elif (dy[k][l] == 0):
+                        if (dx[k][l] > 0):
+                            gradient = 0
+                        else:
+                            gradient = math.pi
+                    
+                    if (gradient >= 0 and gradient < math.pi/4):
+                        histogram[i][j][0] += magnitude
+                    elif (gradient >= math.pi/4 and gradient < math.pi /2):
+                        histogram[i][j][1] += magnitude
+                    elif (gradient >= math.pi/2 and gradient < math.pi * (3/4)):
+                        histogram[i][j][2] += magnitude
+                    elif (gradient >= math.pi * (3/4) and gradient < math.pi):
+                        histogram[i][j][3] += magnitude
+                    elif (gradient >= math.pi and gradient < math.pi * (5/4)):
+                        histogram[i][j][4] += magnitude
+                    elif (gradient >= math.pi * (5/4) and gradient < math.pi * (3/2)):
+                        histogram[i][j][5] += magnitude
+                    elif (gradient >= math.pi * (3/2) and gradient < math.pi * (7/4)):
+                        histogram[i][j][6] += magnitude
+                    elif (gradient >= math.pi * (7/4) and gradient < math.pi * 2):
+                        histogram[i][j][7] += magnitude          
+                    
+    feature = histogram.reshape(4, 32).reshape(128)
+    for i in feature:
+        i = i**0.75
+    feature = feature / sum(feature)
+    
     # END YOUR CODE
     
     return feature
