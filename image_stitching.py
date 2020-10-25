@@ -118,14 +118,17 @@ def normalize(src):
 
 def compute_homography(src, dst):
     """Calculates the perspective transform from at least 4 points of
-    corresponding points using the **Normalized** Direct Linear Transformation
+    corresponding points using the Normalized Direct Linear Transformation
     method.
+
     Args:
         src (np.ndarray): Coordinates of points in the first image (N,2)
         dst (np.ndarray): Corresponding coordinates of points in the second
                           image (N,2)
+
     Returns:
         h_matrix (np.ndarray): The required 3x3 transformation matrix H.
+
     Prohibited functions:
         cv2.findHomography(), cv2.getPerspectiveTransform(),
         np.linalg.solve(), np.linalg.lstsq()
@@ -133,49 +136,38 @@ def compute_homography(src, dst):
     h_matrix = np.eye(3, dtype=np.float64)
 
     ### YOUR CODE HERE
-    #Normalize src
-    T1,normalized_src = normalize(src)
-    #Normalize dst
-    T2,normalized_dst = normalize(dst)
-        
-    ##Start of DLT
-    n = src.shape[0]
-    A = np.zeros((2*n,9))
-    
-    #Concatenate into 2n*9 matrixA
-    for i in range(0,2*n,2):
-        j = int(i/2)
-        
-        x = normalized_src[j][0]
-        y = normalized_src[j][1]
-        x_p = normalized_dst[j][0]
-        y_p = normalized_dst[j][1]
-        
-        A[i,0] = -x #-x
-        A[i,1] = -y #-y
-        A[i,2] = -1 #-1
-        A[i,6] = x * x_p #xx'
-        A[i,7] = y * x_p #yx'
-        A[i,8] = x_p #x'
-        A[i+1,3] = -x #-x
-        A[i+1,4] = -y #-y
-        A[i+1,5] = -1 #-1
-        A[i+1,6] = x * y_p #xy'
-        A[i+1,7] = y * y_p #yy'
-        A[i+1,8] = y_p #y'
-    
-    #Compute SVD    
-    U, D, V = np.linalg.svd(A,0) 
-    
-    #Store singular vector of smallest singular value h
-    L = V[-1,:] / V[-1,-1]  
 
-    #Reshape to get H
-    H = np.reshape(L, (-1,3))
-    
-    #Denormalization: Set H = INV(T′)HT.
-    h_matrix = np.dot(np.dot( np.linalg.inv(T2), H), T1)
-    
+    src_mean = np.mean(src, 0)
+    dst_mean = np.mean(dst, 0)
+
+    src_sd = np.mean(cdist(np.array([src_mean]), src, 'euclidean'))/np.sqrt(2)
+    dst_sd = np.mean(cdist(np.array([dst_mean]), dst, 'euclidean'))/np.sqrt(2)
+
+    T_src = np.array([[1/src_sd, 0, -src_mean[0]/src_sd],
+                    [0,1/src_sd, -src_mean[1]/src_sd],
+                    [0,0,1]])
+    T_dst = np.array([[1/dst_sd, 0, -dst_mean[0]/dst_sd],
+                    [0,1/dst_sd, -dst_mean[1]/dst_sd],
+                    [0,0,1]])
+
+    norm_src = transform_homography(src, T_src)
+    norm_dst = transform_homography(dst, T_dst)
+
+
+    A = []
+    for i in range(0, len(norm_src)):
+        x, y = norm_src[i][0], norm_src[i][1]
+        u, v = norm_dst[i][0], norm_dst[i][1]
+        A.append([-x, -y, -1, 0, 0, 0, u*x, u*y, u])
+        A.append([0, 0, 0, -x, -y, -1, v*x, v*y, v])
+    A = np.asarray(A)
+
+    U, S, Vh = np.linalg.svd(A)
+    L = Vh[-1,:] / Vh[-1,-1]
+
+    H_norm = L.reshape(3, 3)
+
+    h_matrix = np.dot(np.linalg.inv(T_dst), np.dot(H_norm, T_src))
     ### END YOUR CODE
 
     return h_matrix
@@ -372,14 +364,19 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
     matched1_unpad = keypoints1[matches[:,0]]
     matched2_unpad = keypoints2[matches[:,1]]
 
-    max_inliers = np.zeros(N, dtype=np.int8)
+    max_inliers = []
     n_inliers = 0
 
     # RANSAC iteration start
     ### YOUR CODE HERE
+    matched1[:, [0,1]] = matched1[:, [1,0]]
+    matched2[:, [0,1]] = matched2[:, [1,0]]
+    matched1_unpad[:, [0,1]] = matched1_unpad[:, [1,0]]
+    matched2_unpad[:, [0,1]] = matched2_unpad[:, [1,0]]
 
     iterations = n_iters * 10
-    max_inliers = np.zeros(1)
+#     max_inliers = np.zeros(1)
+    
     while (iterations >= 0):    
         
         curr_inliers = 0
@@ -397,18 +394,11 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
         curr_max_inliers, = np.where(ssds < threshold)
         if (len(curr_max_inliers) > len(max_inliers)):
             max_inliers = curr_max_inliers
-        
         iterations = iterations - 1
     
     #Recompute H based on the inliers that we found
-    max_inliers = np.unique(max_inliers)
-    inliers_matching = matches[max_inliers]
-    kp1 = keypoints1[inliers_matching[:,0]]
-    kp2 = keypoints1[inliers_matching[:,1]]
-    
-    kp1[:, [0,1]] = kp1[:, [1,0]]
-    kp2[:, [0,1]] = kp2[:, [1,0]]
-    H = compute_homography(kp1, kp2)
+
+    H = compute_homography(matched1_unpad[max_inliers], matched2_unpad[max_inliers])
     
     print("Threshold " + str(threshold))
     print("Num of samples " + str(n_samples))
@@ -419,7 +409,6 @@ def ransac(keypoints1, keypoints2, matches, sampling_ratio=0.5, n_iters=500, thr
     ### END YOUR CODE
 
     return H, matches[max_inliers]
-
 
 def sift_descriptor(patch):
     """
